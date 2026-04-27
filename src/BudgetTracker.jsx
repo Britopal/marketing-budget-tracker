@@ -135,7 +135,7 @@ export default function BudgetTracker() {
   const chartData = filtered.map((e) => {
     const budget = effectiveBudget(e)
     const spent = effectiveSpent(e)
-    return { name: e.channel, Budget: budget, Spent: spent, over: spent > budget }
+    return { name: e.channel, Budget: budget, Spent: spent, status: getStatus(budget, spent) }
   })
 
   function toggleExpand(id) {
@@ -359,7 +359,7 @@ export default function BudgetTracker() {
                 <Bar dataKey="Budget" fill="#93c5fd" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="Spent" radius={[4, 4, 0, 0]}>
                   {chartData.map((entry, i) => (
-                    <Cell key={i} fill={entry.over ? '#ef4444' : '#22c55e'} />
+                    <Cell key={i} fill={progressBgColor(entry.status)} />
                   ))}
                 </Bar>
               </BarChart>
