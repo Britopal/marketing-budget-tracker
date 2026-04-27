@@ -171,9 +171,14 @@ export default function BudgetTracker() {
     const key = `${id}-${field}`
     const raw = editing[key]
     if (raw === undefined) return
-    const parsed = parseFloat(raw)
-    if (!isNaN(parsed) && parsed >= 0) {
-      setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, [field]: parsed } : e)))
+    if (field === 'channel') {
+      const trimmed = raw.trim()
+      if (trimmed) setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, channel: trimmed } : e)))
+    } else {
+      const parsed = parseFloat(raw)
+      if (!isNaN(parsed) && parsed >= 0) {
+        setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, [field]: parsed } : e)))
+      }
     }
     setEditing((prev) => {
       const next = { ...prev }
@@ -399,8 +404,12 @@ export default function BudgetTracker() {
                   const spent = effectiveSpent(entry)
                   const pct = budget > 0 ? Math.min((spent / budget) * 100, 100) : 0
                   const status = getStatus(budget, spent)
+                  const channelKey = `${entry.id}-channel`
+                  const quarterKey = `${entry.id}-quarter`
                   const budgetKey = `${entry.id}-budget`
                   const spentKey = `${entry.id}-spent`
+                  const editingChannel = channelKey in editing
+                  const editingQuarter = quarterKey in editing
                   const editingBudget = !hasSubs && budgetKey in editing
                   const editingSpent = !hasSubs && spentKey in editing
                   const sf = subForms[entry.id] || { name: '', budget: '', spent: '' }
@@ -425,13 +434,55 @@ export default function BudgetTracker() {
                                 <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
                               </svg>
                             </button>
-                            {entry.channel}
+                            {editingChannel ? (
+                              <input
+                                autoFocus
+                                type="text"
+                                value={editing[channelKey]}
+                                onChange={(e) => setEditing((prev) => ({ ...prev, [channelKey]: e.target.value }))}
+                                onBlur={() => commitEdit(entry.id, 'channel')}
+                                onKeyDown={(e) => { if (e.key === 'Enter') commitEdit(entry.id, 'channel') }}
+                                className="border border-blue-400 rounded px-2 py-0.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-400 w-36"
+                              />
+                            ) : (
+                              <span
+                                className="cursor-pointer hover:text-blue-600 hover:underline decoration-dashed"
+                                title="Click to edit"
+                                onClick={() => startEdit(entry.id, 'channel', entry.channel)}
+                              >
+                                {entry.channel}
+                              </span>
+                            )}
                             {hasSubs && (
                               <span className="text-xs text-slate-400 font-normal">({subs.length})</span>
                             )}
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-slate-500">{entry.quarter}</td>
+                        <td className="px-4 py-3 text-slate-500">
+                          {editingQuarter ? (
+                            <select
+                              autoFocus
+                              value={editing[quarterKey]}
+                              onChange={(e) => {
+                                setEditing((prev) => ({ ...prev, [quarterKey]: e.target.value }))
+                                setEntries((prev) => prev.map((en) => en.id === entry.id ? { ...en, quarter: e.target.value } : en))
+                                setEditing((prev) => { const next = { ...prev }; delete next[quarterKey]; return next })
+                              }}
+                              onBlur={() => commitEdit(entry.id, 'quarter')}
+                              className="border border-blue-400 rounded px-2 py-0.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-400"
+                            >
+                              {['Q1', 'Q2', 'Q3', 'Q4'].map((q) => <option key={q}>{q}</option>)}
+                            </select>
+                          ) : (
+                            <span
+                              className="cursor-pointer hover:text-blue-600 hover:underline decoration-dashed"
+                              title="Click to edit"
+                              onClick={() => startEdit(entry.id, 'quarter', entry.quarter)}
+                            >
+                              {entry.quarter}
+                            </span>
+                          )}
+                        </td>
 
                         {/* Budget */}
                         <td className="px-4 py-3 text-right">
