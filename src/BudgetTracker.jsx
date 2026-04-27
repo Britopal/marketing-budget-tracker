@@ -12,6 +12,7 @@ import {
 } from 'recharts'
 
 const STORAGE_KEY = 'marketing-budget-entries'
+const ANNUAL_BUDGET_KEY = 'marketing-annual-budget'
 
 const SAMPLE_DATA = [
   { id: 1, channel: 'Paid Search', budget: 50000, spent: 42000, quarter: 'Q1' },
@@ -24,19 +25,22 @@ const SAMPLE_DATA = [
 
 function getStatus(budget, spent) {
   const pct = budget > 0 ? (spent / budget) * 100 : 0
-  if (pct >= 100) return 'Over'
+  if (pct > 100) return 'Over'
+  if (pct === 100) return 'Even'
   if (pct >= 80) return 'At risk'
   return 'On track'
 }
 
 function statusStyle(status) {
   if (status === 'Over') return 'bg-red-100 text-red-700 border border-red-300'
+  if (status === 'Even') return 'bg-blue-100 text-blue-700 border border-blue-300'
   if (status === 'At risk') return 'bg-amber-100 text-amber-700 border border-amber-300'
   return 'bg-green-100 text-green-700 border border-green-300'
 }
 
 function progressColor(status) {
   if (status === 'Over') return 'bg-red-500'
+  if (status === 'Even') return 'bg-blue-500'
   if (status === 'At risk') return 'bg-amber-400'
   return 'bg-green-500'
 }
@@ -61,6 +65,12 @@ export default function BudgetTracker() {
     }
   })
 
+  const [annualBudget, setAnnualBudget] = useState(() => {
+    const saved = localStorage.getItem(ANNUAL_BUDGET_KEY)
+    return saved ? Number(saved) : 0
+  })
+  const [annualInput, setAnnualInput] = useState('')
+
   const [quarter, setQuarter] = useState('All')
   const [form, setForm] = useState({ channel: '', budget: '', spent: '', quarter: 'Q1' })
   const [editing, setEditing] = useState({}) // { [id-field]: value }
@@ -68,6 +78,20 @@ export default function BudgetTracker() {
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(entries))
   }, [entries])
+
+  useEffect(() => {
+    localStorage.setItem(ANNUAL_BUDGET_KEY, String(annualBudget))
+  }, [annualBudget])
+
+  const totalAllocated = entries.reduce((s, e) => s + e.budget, 0)
+  const unallocated = annualBudget - totalAllocated
+
+  function handleAnnualSubmit(e) {
+    e.preventDefault()
+    const val = parseFloat(annualInput)
+    if (!isNaN(val) && val >= 0) setAnnualBudget(val)
+    setAnnualInput('')
+  }
 
   const filtered = quarter === 'All' ? entries : entries.filter((e) => e.quarter === quarter)
 
@@ -167,6 +191,39 @@ export default function BudgetTracker() {
               </svg>
               Export CSV
             </button>
+          </div>
+        </div>
+
+        {/* Annual Budget */}
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+            <div className="flex-1">
+              <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Annual Budget</p>
+              <p className="text-2xl font-bold text-slate-900 mt-1">{annualBudget > 0 ? fmt(annualBudget) : '—'}</p>
+              {annualBudget > 0 && (
+                <p className={`text-sm mt-1 font-medium ${unallocated < 0 ? 'text-red-600' : 'text-slate-500'}`}>
+                  {unallocated < 0
+                    ? `${fmt(Math.abs(unallocated))} over-allocated across channels`
+                    : `${fmt(unallocated)} unallocated`}
+                </p>
+              )}
+            </div>
+            <form onSubmit={handleAnnualSubmit} className="flex items-center gap-2">
+              <input
+                type="number"
+                min="0"
+                placeholder="Set annual budget…"
+                value={annualInput}
+                onChange={(e) => setAnnualInput(e.target.value)}
+                className="border border-slate-300 rounded-lg px-3 py-2 text-sm w-48 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <button
+                type="submit"
+                className="bg-slate-700 hover:bg-slate-800 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+              >
+                Set
+              </button>
+            </form>
           </div>
         </div>
 
