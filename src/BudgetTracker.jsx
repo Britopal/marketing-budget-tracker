@@ -347,7 +347,7 @@ export default function BudgetTracker() {
                 <Bar dataKey="Budget" fill="#93c5fd" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="Spent" radius={[4, 4, 0, 0]}>
                   {chartData.map((entry, i) => (
-                    <Cell key={i} fill={entry.over ? '#ef4444' : '#6366f1'} />
+                    <Cell key={i} fill={entry.over ? '#ef4444' : '#22c55e'} />
                   ))}
                 </Bar>
               </BarChart>
@@ -622,7 +622,7 @@ export default function BudgetTracker() {
                             >
                               <input
                                 type="text"
-                                placeholder="Vendor / specialist name"
+                                placeholder="Name"
                                 value={sf.name}
                                 onChange={(e) => setSubForms((prev) => ({ ...prev, [entry.id]: { ...sf, name: e.target.value } }))}
                                 className="flex-1 min-w-32 border border-slate-300 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
