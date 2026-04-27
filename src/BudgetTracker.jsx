@@ -1,42 +1,45 @@
 import { useState, useEffect, Fragment } from 'react'
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  Cell,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell,
 } from 'recharts'
 
-const STORAGE_KEY = 'marketing-budget-entries'
-const ANNUAL_BUDGET_KEY = 'marketing-annual-budget'
+const STORAGE_KEY = 'mbt-channels'
+const ANNUAL_KEY = 'mbt-annual-budget'
 
 const SAMPLE_DATA = [
   {
-    id: 1, channel: 'Paid Search', budget: 50000, spent: 42000, quarter: 'Q1',
-    subs: [
-      { id: 1, name: 'Google Ads', budget: 35000, spent: 29000 },
-      { id: 2, name: 'Bing Ads', budget: 15000, spent: 13000 },
+    id: 1,
+    channel: 'Client Events & Experiences',
+    budget: 105000,
+    items: [
+      { id: 1, name: 'Malcolm Gladwell', quarter: 'Q1', spent: 27782 },
+      { id: 2, name: 'March Market Outlook Dinner', quarter: 'Q1', spent: 10198 },
     ],
   },
   {
-    id: 2, channel: 'Social Ads', budget: 30000, spent: 31500, quarter: 'Q1',
-    subs: [
-      { id: 1, name: 'Facebook', budget: 18000, spent: 20000 },
-      { id: 2, name: 'Instagram', budget: 12000, spent: 11500 },
+    id: 2,
+    channel: 'Specialist Vendors',
+    budget: 50000,
+    items: [
+      { id: 1, name: 'Jodi Designer', quarter: 'Q1', spent: 1340 },
+      { id: 2, name: 'Dee Nick Media', quarter: 'Q2', spent: 7500 },
+      { id: 3, name: 'Tiny Frog', quarter: 'Q1', spent: 2100 },
+      { id: 4, name: 'Wealthtender', quarter: 'Q1', spent: 1272 },
     ],
   },
-  { id: 3, channel: 'Email', budget: 10000, spent: 7200, quarter: 'Q1', subs: [] },
-  { id: 4, channel: 'Content', budget: 20000, spent: 17800, quarter: 'Q2', subs: [] },
-  { id: 5, channel: 'Events', budget: 40000, spent: 38000, quarter: 'Q2', subs: [] },
-  { id: 6, channel: 'SEO', budget: 15000, spent: 9500, quarter: 'Q3', subs: [] },
+  {
+    id: 3,
+    channel: 'Advertising',
+    budget: 0,
+    items: [
+      { id: 1, name: 'Facebook Ads', quarter: 'Q1', spent: 6437 },
+    ],
+  },
 ]
 
 function getStatus(budget, spent) {
-  const pct = budget > 0 ? (spent / budget) * 100 : 0
+  if (budget === 0) return spent > 0 ? 'Over' : 'On track'
+  const pct = (spent / budget) * 100
   if (pct > 100) return 'Over'
   if (pct === 100) return 'Even'
   if (pct >= 80) return 'At risk'
@@ -61,28 +64,14 @@ function fmt(n) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n)
 }
 
-function nextId(entries) {
-  return entries.length > 0 ? Math.max(...entries.map((e) => e.id)) + 1 : 1
-}
-
-function nextSubId(subs) {
-  return subs.length > 0 ? Math.max(...subs.map((s) => s.id)) + 1 : 1
-}
-
-function effectiveBudget(entry) {
-  const subs = entry.subs || []
-  return subs.length > 0 ? subs.reduce((s, sub) => s + sub.budget, 0) : entry.budget
-}
-
-function effectiveSpent(entry) {
-  const subs = entry.subs || []
-  return subs.length > 0 ? subs.reduce((s, sub) => s + sub.spent, 0) : entry.spent
+function nextId(arr) {
+  return arr.length > 0 ? Math.max(...arr.map((x) => x.id)) + 1 : 1
 }
 
 const QUARTERS = ['All', 'Q1', 'Q2', 'Q3', 'Q4']
 
 export default function BudgetTracker() {
-  const [entries, setEntries] = useState(() => {
+  const [channels, setChannels] = useState(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY)
       return saved ? JSON.parse(saved) : SAMPLE_DATA
@@ -92,27 +81,17 @@ export default function BudgetTracker() {
   })
 
   const [annualBudget, setAnnualBudget] = useState(() => {
-    const saved = localStorage.getItem(ANNUAL_BUDGET_KEY)
+    const saved = localStorage.getItem(ANNUAL_KEY)
     return saved ? Number(saved) : 0
   })
   const [annualInput, setAnnualInput] = useState('')
-
   const [quarter, setQuarter] = useState('All')
-  const [form, setForm] = useState({ channel: '', budget: '', spent: '', quarter: 'Q1' })
-  const [editing, setEditing] = useState({})
   const [expanded, setExpanded] = useState(new Set())
-  const [subForms, setSubForms] = useState({})
+  const [editing, setEditing] = useState({})
+  const [newItemForms, setNewItemForms] = useState({})
 
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(entries))
-  }, [entries])
-
-  useEffect(() => {
-    localStorage.setItem(ANNUAL_BUDGET_KEY, String(annualBudget))
-  }, [annualBudget])
-
-  const totalAllocated = entries.reduce((s, e) => s + effectiveBudget(e), 0)
-  const unallocated = annualBudget - totalAllocated
+  useEffect(() => { localStorage.setItem(STORAGE_KEY, JSON.stringify(channels)) }, [channels])
+  useEffect(() => { localStorage.setItem(ANNUAL_KEY, String(annualBudget)) }, [annualBudget])
 
   function handleAnnualSubmit(e) {
     e.preventDefault()
@@ -121,22 +100,75 @@ export default function BudgetTracker() {
     setAnnualInput('')
   }
 
-  const filtered = quarter === 'All' ? entries : entries.filter((e) => e.quarter === quarter)
+  const totalAllocated = channels.reduce((s, ch) => s + ch.budget, 0)
+  const unallocated = annualBudget - totalAllocated
 
-  // Summary metrics derived from effective values
-  const totalBudget = filtered.reduce((s, e) => s + effectiveBudget(e), 0)
-  const totalSpent = filtered.reduce((s, e) => s + effectiveSpent(e), 0)
-  const remaining = totalBudget - totalSpent
-  const pctUsed = totalBudget > 0 ? ((totalSpent / totalBudget) * 100).toFixed(1) : '0.0'
+  function getFilteredItems(ch) {
+    return quarter === 'All' ? ch.items : ch.items.filter((i) => i.quarter === quarter)
+  }
+
+  function channelSpent(ch) {
+    return getFilteredItems(ch).reduce((s, i) => s + i.spent, 0)
+  }
+
+  const totalSpent = channels.reduce((s, ch) => s + channelSpent(ch), 0)
   const annualRemaining = annualBudget - totalSpent
   const annualPctUsed = annualBudget > 0 ? ((totalSpent / annualBudget) * 100).toFixed(1) : '0.0'
 
-  // Chart data
-  const chartData = filtered.map((e) => {
-    const budget = effectiveBudget(e)
-    const spent = effectiveSpent(e)
-    return { name: e.channel, Budget: budget, Spent: spent, status: getStatus(budget, spent) }
+  const chartData = channels.map((ch) => {
+    const spent = channelSpent(ch)
+    return { name: ch.channel, Budget: ch.budget, Spent: spent, status: getStatus(ch.budget, spent) }
   })
+
+  // ── Inline editing ──────────────────────────────────────────────────────────
+
+  function startEdit(key, value) {
+    setEditing((prev) => ({ ...prev, [key]: String(value) }))
+  }
+
+  function closeEdit(key) {
+    setEditing((prev) => { const next = { ...prev }; delete next[key]; return next })
+  }
+
+  function commitChannelField(chId, field) {
+    const key = `ch-${chId}-${field}`
+    const raw = editing[key]
+    if (raw === undefined) return
+    if (field === 'channel') {
+      const v = raw.trim()
+      if (v) setChannels((prev) => prev.map((ch) => ch.id === chId ? { ...ch, channel: v } : ch))
+    } else if (field === 'budget') {
+      const v = parseFloat(raw)
+      if (!isNaN(v) && v >= 0) setChannels((prev) => prev.map((ch) => ch.id === chId ? { ...ch, budget: v } : ch))
+    }
+    closeEdit(key)
+  }
+
+  function commitItemField(chId, itemId, field) {
+    const key = `item-${chId}-${itemId}-${field}`
+    const raw = editing[key]
+    if (raw === undefined) return
+    if (field === 'name') {
+      const v = raw.trim()
+      if (v) setChannels((prev) => prev.map((ch) => ch.id !== chId ? ch : {
+        ...ch, items: ch.items.map((i) => i.id === itemId ? { ...i, name: v } : i),
+      }))
+    } else if (field === 'spent') {
+      const v = parseFloat(raw)
+      if (!isNaN(v) && v >= 0) setChannels((prev) => prev.map((ch) => ch.id !== chId ? ch : {
+        ...ch, items: ch.items.map((i) => i.id === itemId ? { ...i, spent: v } : i),
+      }))
+    }
+    closeEdit(key)
+  }
+
+  function updateItemQuarter(chId, itemId, q) {
+    setChannels((prev) => prev.map((ch) => ch.id !== chId ? ch : {
+      ...ch, items: ch.items.map((i) => i.id === itemId ? { ...i, quarter: q } : i),
+    }))
+  }
+
+  // ── CRUD ────────────────────────────────────────────────────────────────────
 
   function toggleExpand(id) {
     setExpanded((prev) => {
@@ -146,117 +178,60 @@ export default function BudgetTracker() {
     })
   }
 
-  function handleDelete(id) {
-    setEntries((prev) => prev.filter((e) => e.id !== id))
-  }
-
-  function handleAdd(e) {
-    e.preventDefault()
-    const budget = parseFloat(form.budget)
-    const spent = parseFloat(form.spent)
-    if (!form.channel.trim() || isNaN(budget) || isNaN(spent)) return
-    setEntries((prev) => [
-      ...prev,
-      { id: nextId(prev), channel: form.channel.trim(), budget, spent, quarter: form.quarter, subs: [] },
-    ])
-    setForm({ channel: '', budget: '', spent: '', quarter: 'Q1' })
-  }
-
-  // Channel-level inline editing (only active when the channel has no sub-rows)
-  function startEdit(id, field, value) {
-    setEditing((prev) => ({ ...prev, [`${id}-${field}`]: String(value) }))
-  }
-
-  function commitEdit(id, field) {
-    const key = `${id}-${field}`
-    const raw = editing[key]
-    if (raw === undefined) return
-    if (field === 'channel') {
-      const trimmed = raw.trim()
-      if (trimmed) setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, channel: trimmed } : e)))
-    } else {
-      const parsed = parseFloat(raw)
-      if (!isNaN(parsed) && parsed >= 0) {
-        setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, [field]: parsed } : e)))
-      }
-    }
-    setEditing((prev) => {
-      const next = { ...prev }
-      delete next[key]
-      return next
-    })
-  }
-
-  // Sub-row inline editing
-  function startEditSub(entryId, subId, field, value) {
-    setEditing((prev) => ({ ...prev, [`sub-${entryId}-${subId}-${field}`]: String(value) }))
-  }
-
-  function commitEditSub(entryId, subId, field) {
-    const key = `sub-${entryId}-${subId}-${field}`
-    const raw = editing[key]
-    if (raw === undefined) return
-    const parsed = parseFloat(raw)
-    if (!isNaN(parsed) && parsed >= 0) {
-      setEntries((prev) =>
-        prev.map((e) =>
-          e.id !== entryId
-            ? e
-            : { ...e, subs: (e.subs || []).map((sub) => (sub.id === subId ? { ...sub, [field]: parsed } : sub)) }
-        )
-      )
-    }
-    setEditing((prev) => {
-      const next = { ...prev }
-      delete next[key]
-      return next
-    })
-  }
-
-  function addSub(entryId) {
-    const sf = subForms[entryId] || {}
+  function addItem(chId) {
+    const sf = newItemForms[chId] || {}
     const name = (sf.name || '').trim()
-    const budget = parseFloat(sf.budget || '')
     const spent = parseFloat(sf.spent || '')
-    if (!name || isNaN(budget) || isNaN(spent)) return
-    setEntries((prev) =>
-      prev.map((e) => {
-        if (e.id !== entryId) return e
-        const subs = e.subs || []
-        return { ...e, subs: [...subs, { id: nextSubId(subs), name, budget, spent }] }
-      })
-    )
-    setSubForms((prev) => ({ ...prev, [entryId]: { name: '', budget: '', spent: '' } }))
+    if (!name || isNaN(spent)) return
+    const q = sf.quarter || (quarter !== 'All' ? quarter : 'Q1')
+    setChannels((prev) => prev.map((ch) => {
+      if (ch.id !== chId) return ch
+      return { ...ch, items: [...ch.items, { id: nextId(ch.items), name, quarter: q, spent }] }
+    }))
+    setNewItemForms((prev) => ({ ...prev, [chId]: { name: '', quarter: q, spent: '' } }))
   }
 
-  function deleteSub(entryId, subId) {
-    setEntries((prev) =>
-      prev.map((e) =>
-        e.id !== entryId ? e : { ...e, subs: (e.subs || []).filter((sub) => sub.id !== subId) }
-      )
-    )
+  function deleteItem(chId, itemId) {
+    setChannels((prev) => prev.map((ch) => ch.id !== chId ? ch : {
+      ...ch, items: ch.items.filter((i) => i.id !== itemId),
+    }))
+  }
+
+  function addChannel() {
+    const id = nextId(channels)
+    setChannels((prev) => [...prev, { id, channel: 'New Channel', budget: 0, items: [] }])
+    setExpanded((prev) => new Set([...prev, id]))
+  }
+
+  function deleteChannel(chId) {
+    setChannels((prev) => prev.filter((ch) => ch.id !== chId))
   }
 
   function exportCSV() {
-    const headers = ['Channel', 'Quarter', 'Budget', 'Spent', 'Remaining', 'Status']
+    const headers = ['Channel', 'Item', 'Quarter', 'Channel Budget', 'Spent', 'Channel Remaining', 'Status']
     const rows = []
-    filtered.forEach((e) => {
-      const budget = effectiveBudget(e)
-      const spent = effectiveSpent(e)
-      rows.push([e.channel, e.quarter, budget, spent, budget - spent, getStatus(budget, spent)])
-      ;(e.subs || []).forEach((sub) => {
-        rows.push([`  ${sub.name}`, e.quarter, sub.budget, sub.spent, sub.budget - sub.spent, getStatus(sub.budget, sub.spent)])
+    channels.forEach((ch) => {
+      const chSpent = ch.items.reduce((s, i) => s + i.spent, 0)
+      const remaining = ch.budget - chSpent
+      const status = getStatus(ch.budget, chSpent)
+      if (ch.items.length === 0) {
+        rows.push([`"${ch.channel}"`, '', '', ch.budget, 0, ch.budget, status])
+      }
+      ch.items.forEach((i) => {
+        rows.push([`"${ch.channel}"`, `"${i.name}"`, i.quarter, ch.budget, i.spent, remaining, status])
       })
     })
-    const csv = [headers, ...rows].map((r) => r.join(',')).join('\n')
+    const csv = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n')
     const blob = new Blob([csv], { type: 'text/csv' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `marketing-budget-${quarter.toLowerCase()}.csv`
+    a.download = 'marketing-budget.csv'
     a.click()
     URL.revokeObjectURL(url)
   }
+
+  // ── Render ──────────────────────────────────────────────────────────────────
 
   return (
     <div className="min-h-screen bg-slate-50 p-4 sm:p-6 lg:p-8">
@@ -275,9 +250,7 @@ export default function BudgetTracker() {
               onChange={(e) => setQuarter(e.target.value)}
               className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              {QUARTERS.map((q) => (
-                <option key={q}>{q}</option>
-              ))}
+              {QUARTERS.map((q) => <option key={q}>{q}</option>)}
             </select>
             <button
               onClick={exportCSV}
@@ -324,14 +297,9 @@ export default function BudgetTracker() {
           </div>
         </div>
 
-        {/* Summary Cards */}
+        {/* Metric Cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <MetricCard
-            label="Annual Budget"
-            value={annualBudget > 0 ? fmt(annualBudget) : '—'}
-            sub="set above"
-            color="blue"
-          />
+          <MetricCard label="Annual Budget" value={annualBudget > 0 ? fmt(annualBudget) : '—'} sub="set above" color="blue" />
           <MetricCard label="Total Spent" value={fmt(totalSpent)} sub="across all channels" color="indigo" />
           <MetricCard
             label="Remaining"
@@ -352,7 +320,7 @@ export default function BudgetTracker() {
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
           <h2 className="text-base font-semibold text-slate-800 mb-4">Budget vs. Spent by Channel</h2>
           {chartData.length === 0 ? (
-            <p className="text-slate-400 text-sm text-center py-10">No data for this quarter.</p>
+            <p className="text-slate-400 text-sm text-center py-10">No channels yet.</p>
           ) : (
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={chartData} margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
@@ -381,47 +349,44 @@ export default function BudgetTracker() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wide">
-                  <th className="text-left px-5 py-3 font-medium">Channel</th>
-                  <th className="text-left px-4 py-3 font-medium">Quarter</th>
-                  <th className="text-right px-4 py-3 font-medium">Budget</th>
+                  <th className="text-left px-5 py-3 font-medium">Channel / Item</th>
+                  <th className="text-right px-4 py-3 font-medium">Budget / Qtr</th>
                   <th className="text-right px-4 py-3 font-medium">Spent</th>
                   <th className="px-4 py-3 font-medium w-40">Progress</th>
                   <th className="text-center px-4 py-3 font-medium">Status</th>
-                  <th className="px-4 py-3"></th>
+                  <th className="px-3 py-3 w-8"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filtered.length === 0 && (
+                {channels.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="text-center py-10 text-slate-400">No entries for this quarter.</td>
+                    <td colSpan={6} className="text-center py-10 text-slate-400">
+                      No channels yet. Add one below.
+                    </td>
                   </tr>
                 )}
-                {filtered.map((entry) => {
-                  const subs = entry.subs || []
-                  const hasSubs = subs.length > 0
-                  const isExpanded = expanded.has(entry.id)
-                  const budget = effectiveBudget(entry)
-                  const spent = effectiveSpent(entry)
-                  const pct = budget > 0 ? Math.min((spent / budget) * 100, 100) : 0
-                  const status = getStatus(budget, spent)
-                  const channelKey = `${entry.id}-channel`
-                  const quarterKey = `${entry.id}-quarter`
-                  const budgetKey = `${entry.id}-budget`
-                  const spentKey = `${entry.id}-spent`
-                  const editingChannel = channelKey in editing
-                  const editingQuarter = quarterKey in editing
-                  const editingBudget = !hasSubs && budgetKey in editing
-                  const editingSpent = !hasSubs && spentKey in editing
-                  const sf = subForms[entry.id] || { name: '', budget: '', spent: '' }
+
+                {channels.map((ch) => {
+                  const filteredItems = getFilteredItems(ch)
+                  const spent = filteredItems.reduce((s, i) => s + i.spent, 0)
+                  const pct = ch.budget === 0
+                    ? (spent > 0 ? 100 : 0)
+                    : Math.min((spent / ch.budget) * 100, 100)
+                  const status = getStatus(ch.budget, spent)
+                  const isExpanded = expanded.has(ch.id)
+                  const chNameKey = `ch-${ch.id}-channel`
+                  const chBudgetKey = `ch-${ch.id}-budget`
+                  const sf = newItemForms[ch.id] || { name: '', quarter: quarter !== 'All' ? quarter : 'Q1', spent: '' }
 
                   return (
-                    <Fragment key={entry.id}>
-                      {/* Channel row */}
+                    <Fragment key={ch.id}>
+
+                      {/* ── Channel row ── */}
                       <tr className="hover:bg-slate-50 transition-colors">
                         <td className="px-5 py-3 font-medium text-slate-800">
                           <div className="flex items-center gap-2">
                             <button
-                              onClick={() => toggleExpand(entry.id)}
+                              onClick={() => toggleExpand(ch.id)}
                               className="p-0.5 rounded hover:bg-slate-200 transition-colors flex-shrink-0"
                               title={isExpanded ? 'Collapse' : 'Expand'}
                             >
@@ -434,107 +399,55 @@ export default function BudgetTracker() {
                                 <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
                               </svg>
                             </button>
-                            {editingChannel ? (
+                            {chNameKey in editing ? (
                               <input
                                 autoFocus
                                 type="text"
-                                value={editing[channelKey]}
-                                onChange={(e) => setEditing((prev) => ({ ...prev, [channelKey]: e.target.value }))}
-                                onBlur={() => commitEdit(entry.id, 'channel')}
-                                onKeyDown={(e) => { if (e.key === 'Enter') commitEdit(entry.id, 'channel') }}
-                                className="border border-blue-400 rounded px-2 py-0.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-400 w-36"
+                                value={editing[chNameKey]}
+                                onChange={(e) => setEditing((prev) => ({ ...prev, [chNameKey]: e.target.value }))}
+                                onBlur={() => commitChannelField(ch.id, 'channel')}
+                                onKeyDown={(e) => { if (e.key === 'Enter') commitChannelField(ch.id, 'channel') }}
+                                className="border border-blue-400 rounded px-2 py-0.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-400 w-44"
                               />
                             ) : (
                               <span
                                 className="cursor-pointer hover:text-blue-600 hover:underline decoration-dashed"
                                 title="Click to edit"
-                                onClick={() => startEdit(entry.id, 'channel', entry.channel)}
+                                onClick={() => startEdit(chNameKey, ch.channel)}
                               >
-                                {entry.channel}
+                                {ch.channel}
                               </span>
                             )}
-                            {hasSubs && (
-                              <span className="text-xs text-slate-400 font-normal">({subs.length})</span>
-                            )}
+                            <span className="text-xs text-slate-400 font-normal">({ch.items.length})</span>
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-slate-500">
-                          {editingQuarter ? (
-                            <select
-                              autoFocus
-                              value={editing[quarterKey]}
-                              onChange={(e) => {
-                                setEditing((prev) => ({ ...prev, [quarterKey]: e.target.value }))
-                                setEntries((prev) => prev.map((en) => en.id === entry.id ? { ...en, quarter: e.target.value } : en))
-                                setEditing((prev) => { const next = { ...prev }; delete next[quarterKey]; return next })
-                              }}
-                              onBlur={() => commitEdit(entry.id, 'quarter')}
-                              className="border border-blue-400 rounded px-2 py-0.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-400"
-                            >
-                              {['Q1', 'Q2', 'Q3', 'Q4'].map((q) => <option key={q}>{q}</option>)}
-                            </select>
-                          ) : (
-                            <span
-                              className="cursor-pointer hover:text-blue-600 hover:underline decoration-dashed"
-                              title="Click to edit"
-                              onClick={() => startEdit(entry.id, 'quarter', entry.quarter)}
-                            >
-                              {entry.quarter}
-                            </span>
-                          )}
-                        </td>
 
-                        {/* Budget */}
+                        {/* Channel budget */}
                         <td className="px-4 py-3 text-right">
-                          {hasSubs ? (
-                            <span className="text-slate-600" title="Sum of sub-rows">{fmt(budget)}</span>
-                          ) : editingBudget ? (
+                          {chBudgetKey in editing ? (
                             <input
                               autoFocus
                               type="number"
                               min="0"
-                              value={editing[budgetKey]}
-                              onChange={(e) => setEditing((prev) => ({ ...prev, [budgetKey]: e.target.value }))}
-                              onBlur={() => commitEdit(entry.id, 'budget')}
-                              onKeyDown={(e) => { if (e.key === 'Enter') commitEdit(entry.id, 'budget') }}
-                              className="w-24 text-right border border-blue-400 rounded px-2 py-0.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                              value={editing[chBudgetKey]}
+                              onChange={(e) => setEditing((prev) => ({ ...prev, [chBudgetKey]: e.target.value }))}
+                              onBlur={() => commitChannelField(ch.id, 'budget')}
+                              onKeyDown={(e) => { if (e.key === 'Enter') commitChannelField(ch.id, 'budget') }}
+                              className="w-28 text-right border border-blue-400 rounded px-2 py-0.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
                             />
                           ) : (
                             <span
                               className="cursor-pointer hover:text-blue-600 hover:underline decoration-dashed"
                               title="Click to edit"
-                              onClick={() => startEdit(entry.id, 'budget', entry.budget)}
+                              onClick={() => startEdit(chBudgetKey, ch.budget)}
                             >
-                              {fmt(budget)}
+                              {fmt(ch.budget)}
                             </span>
                           )}
                         </td>
 
-                        {/* Spent */}
-                        <td className="px-4 py-3 text-right">
-                          {hasSubs ? (
-                            <span className="text-slate-600" title="Sum of sub-rows">{fmt(spent)}</span>
-                          ) : editingSpent ? (
-                            <input
-                              autoFocus
-                              type="number"
-                              min="0"
-                              value={editing[spentKey]}
-                              onChange={(e) => setEditing((prev) => ({ ...prev, [spentKey]: e.target.value }))}
-                              onBlur={() => commitEdit(entry.id, 'spent')}
-                              onKeyDown={(e) => { if (e.key === 'Enter') commitEdit(entry.id, 'spent') }}
-                              className="w-24 text-right border border-blue-400 rounded px-2 py-0.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                            />
-                          ) : (
-                            <span
-                              className="cursor-pointer hover:text-blue-600 hover:underline decoration-dashed"
-                              title="Click to edit"
-                              onClick={() => startEdit(entry.id, 'spent', entry.spent)}
-                            >
-                              {fmt(spent)}
-                            </span>
-                          )}
-                        </td>
+                        {/* Total spent — derived, read-only */}
+                        <td className="px-4 py-3 text-right font-medium text-slate-700">{fmt(spent)}</td>
 
                         {/* Progress bar */}
                         <td className="px-4 py-3">
@@ -546,7 +459,7 @@ export default function BudgetTracker() {
                               />
                             </div>
                             <span className="text-xs text-slate-500 w-8 text-right">
-                              {budget > 0 ? `${Math.round((spent / budget) * 100)}%` : '—'}
+                              {ch.budget > 0 ? `${Math.round((spent / ch.budget) * 100)}%` : '—'}
                             </span>
                           </div>
                         </td>
@@ -559,115 +472,115 @@ export default function BudgetTracker() {
                         </td>
 
                         {/* Delete channel */}
-                        <td className="px-4 py-3 text-center">
+                        <td className="px-3 py-3 text-center">
                           <button
-                            onClick={() => handleDelete(entry.id)}
-                            className="text-slate-400 hover:text-red-500 transition-colors"
+                            onClick={() => deleteChannel(ch.id)}
+                            className="text-slate-300 hover:text-red-500 transition-colors"
                             title="Delete channel"
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                             </svg>
                           </button>
                         </td>
                       </tr>
 
-                      {/* Sub-rows */}
-                      {isExpanded && subs.map((sub) => {
-                        const subStatus = getStatus(sub.budget, sub.spent)
-                        const subPct = sub.budget > 0 ? Math.min((sub.spent / sub.budget) * 100, 100) : 0
-                        const subBudgetKey = `sub-${entry.id}-${sub.id}-budget`
-                        const subSpentKey = `sub-${entry.id}-${sub.id}-spent`
+                      {/* ── Item rows ── */}
+                      {isExpanded && filteredItems.map((item) => {
+                        const itemNameKey = `item-${ch.id}-${item.id}-name`
+                        const itemSpentKey = `item-${ch.id}-${item.id}-spent`
+                        const itemQtrKey = `item-${ch.id}-${item.id}-quarter`
 
                         return (
-                          <tr key={`sub-${entry.id}-${sub.id}`} className="bg-slate-50/60 border-l-2 border-l-slate-200">
+                          <tr key={item.id} className="bg-slate-50/60 border-l-2 border-l-slate-200">
+                            {/* Item name */}
                             <td className="pl-12 pr-4 py-2 text-slate-600">
                               <div className="flex items-center gap-1.5">
                                 <span className="text-slate-300 select-none">└</span>
-                                {sub.name}
-                              </div>
-                            </td>
-                            <td className="px-4 py-2 text-slate-400 text-xs">{entry.quarter}</td>
-
-                            {/* Sub budget — inline editable */}
-                            <td className="px-4 py-2 text-right">
-                              {subBudgetKey in editing ? (
-                                <input
-                                  autoFocus
-                                  type="number"
-                                  min="0"
-                                  value={editing[subBudgetKey]}
-                                  onChange={(e) => setEditing((prev) => ({ ...prev, [subBudgetKey]: e.target.value }))}
-                                  onBlur={() => commitEditSub(entry.id, sub.id, 'budget')}
-                                  onKeyDown={(e) => { if (e.key === 'Enter') commitEditSub(entry.id, sub.id, 'budget') }}
-                                  className="w-24 text-right border border-blue-400 rounded px-2 py-0.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                                />
-                              ) : (
-                                <span
-                                  className="cursor-pointer hover:text-blue-600 hover:underline decoration-dashed text-slate-600"
-                                  title="Click to edit"
-                                  onClick={() => startEditSub(entry.id, sub.id, 'budget', sub.budget)}
-                                >
-                                  {fmt(sub.budget)}
-                                </span>
-                              )}
-                            </td>
-
-                            {/* Sub spent — inline editable */}
-                            <td className="px-4 py-2 text-right">
-                              {subSpentKey in editing ? (
-                                <input
-                                  autoFocus
-                                  type="number"
-                                  min="0"
-                                  value={editing[subSpentKey]}
-                                  onChange={(e) => setEditing((prev) => ({ ...prev, [subSpentKey]: e.target.value }))}
-                                  onBlur={() => commitEditSub(entry.id, sub.id, 'spent')}
-                                  onKeyDown={(e) => { if (e.key === 'Enter') commitEditSub(entry.id, sub.id, 'spent') }}
-                                  className="w-24 text-right border border-blue-400 rounded px-2 py-0.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                                />
-                              ) : (
-                                <span
-                                  className="cursor-pointer hover:text-blue-600 hover:underline decoration-dashed text-slate-600"
-                                  title="Click to edit"
-                                  onClick={() => startEditSub(entry.id, sub.id, 'spent', sub.spent)}
-                                >
-                                  {fmt(sub.spent)}
-                                </span>
-                              )}
-                            </td>
-
-                            {/* Sub progress */}
-                            <td className="px-4 py-2">
-                              <div className="flex items-center gap-2">
-                                <div className="flex-1 bg-slate-200 rounded-full h-1.5 overflow-hidden">
-                                  <div
-                                    className="h-1.5 rounded-full transition-all"
-                                    style={{ width: `${subPct}%`, backgroundColor: progressBgColor(subStatus) }}
+                                {itemNameKey in editing ? (
+                                  <input
+                                    autoFocus
+                                    type="text"
+                                    value={editing[itemNameKey]}
+                                    onChange={(e) => setEditing((prev) => ({ ...prev, [itemNameKey]: e.target.value }))}
+                                    onBlur={() => commitItemField(ch.id, item.id, 'name')}
+                                    onKeyDown={(e) => { if (e.key === 'Enter') commitItemField(ch.id, item.id, 'name') }}
+                                    className="border border-blue-400 rounded px-2 py-0.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 w-44"
                                   />
-                                </div>
-                                <span className="text-xs text-slate-400 w-8 text-right">
-                                  {sub.budget > 0 ? `${Math.round((sub.spent / sub.budget) * 100)}%` : '—'}
-                                </span>
+                                ) : (
+                                  <span
+                                    className="cursor-pointer hover:text-blue-600 hover:underline decoration-dashed"
+                                    title="Click to edit"
+                                    onClick={() => startEdit(itemNameKey, item.name)}
+                                  >
+                                    {item.name}
+                                  </span>
+                                )}
                               </div>
                             </td>
 
-                            {/* Sub status */}
-                            <td className="px-4 py-2 text-center">
-                              <span className={`inline-block text-xs font-semibold px-2.5 py-0.5 rounded-full ${statusStyle(subStatus)}`}>
-                                {subStatus}
-                              </span>
+                            {/* Quarter */}
+                            <td className="px-4 py-2 text-right text-slate-500">
+                              {itemQtrKey in editing ? (
+                                <select
+                                  autoFocus
+                                  value={editing[itemQtrKey]}
+                                  onChange={(e) => {
+                                    updateItemQuarter(ch.id, item.id, e.target.value)
+                                    closeEdit(itemQtrKey)
+                                  }}
+                                  onBlur={() => closeEdit(itemQtrKey)}
+                                  className="border border-blue-400 rounded px-2 py-0.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-400"
+                                >
+                                  {['Q1', 'Q2', 'Q3', 'Q4'].map((q) => <option key={q}>{q}</option>)}
+                                </select>
+                              ) : (
+                                <span
+                                  className="cursor-pointer hover:text-blue-600 hover:underline decoration-dashed"
+                                  title="Click to edit"
+                                  onClick={() => startEdit(itemQtrKey, item.quarter)}
+                                >
+                                  {item.quarter}
+                                </span>
+                              )}
                             </td>
 
-                            {/* Delete sub */}
-                            <td className="px-4 py-2 text-center">
+                            {/* Spent */}
+                            <td className="px-4 py-2 text-right text-slate-600">
+                              {itemSpentKey in editing ? (
+                                <input
+                                  autoFocus
+                                  type="number"
+                                  min="0"
+                                  value={editing[itemSpentKey]}
+                                  onChange={(e) => setEditing((prev) => ({ ...prev, [itemSpentKey]: e.target.value }))}
+                                  onBlur={() => commitItemField(ch.id, item.id, 'spent')}
+                                  onKeyDown={(e) => { if (e.key === 'Enter') commitItemField(ch.id, item.id, 'spent') }}
+                                  className="w-24 text-right border border-blue-400 rounded px-2 py-0.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                                />
+                              ) : (
+                                <span
+                                  className="cursor-pointer hover:text-blue-600 hover:underline decoration-dashed"
+                                  title="Click to edit"
+                                  onClick={() => startEdit(itemSpentKey, item.spent)}
+                                >
+                                  {fmt(item.spent)}
+                                </span>
+                              )}
+                            </td>
+
+                            <td className="px-4 py-2" />
+                            <td className="px-4 py-2" />
+
+                            {/* Delete item */}
+                            <td className="px-3 py-2 text-center">
                               <button
-                                onClick={() => deleteSub(entry.id, sub.id)}
+                                onClick={() => deleteItem(ch.id, item.id)}
                                 className="text-slate-300 hover:text-red-500 transition-colors"
-                                title="Delete sub-row"
+                                title="Delete item"
                               >
                                 <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                                 </svg>
                               </button>
                             </td>
@@ -675,101 +588,66 @@ export default function BudgetTracker() {
                         )
                       })}
 
-                      {/* Add sub-row form */}
+                      {/* ── Add item form ── */}
                       {isExpanded && (
                         <tr className="bg-slate-50/40 border-l-2 border-l-slate-200">
-                          <td colSpan={7} className="pl-12 pr-5 py-2">
+                          <td colSpan={6} className="pl-12 pr-5 py-2">
                             <form
-                              onSubmit={(e) => { e.preventDefault(); addSub(entry.id) }}
+                              onSubmit={(e) => { e.preventDefault(); addItem(ch.id) }}
                               className="flex items-center gap-2 flex-wrap"
                             >
                               <input
                                 type="text"
                                 placeholder="Name"
                                 value={sf.name}
-                                onChange={(e) => setSubForms((prev) => ({ ...prev, [entry.id]: { ...sf, name: e.target.value } }))}
+                                onChange={(e) => setNewItemForms((prev) => ({ ...prev, [ch.id]: { ...sf, name: e.target.value } }))}
                                 className="flex-1 min-w-32 border border-slate-300 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
                               />
-                              <input
-                                type="number"
-                                placeholder="Budget ($)"
-                                min="0"
-                                value={sf.budget}
-                                onChange={(e) => setSubForms((prev) => ({ ...prev, [entry.id]: { ...sf, budget: e.target.value } }))}
-                                className="w-28 border border-slate-300 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
-                              />
+                              <select
+                                value={sf.quarter || 'Q1'}
+                                onChange={(e) => setNewItemForms((prev) => ({ ...prev, [ch.id]: { ...sf, quarter: e.target.value } }))}
+                                className="border border-slate-300 rounded-lg px-3 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              >
+                                {['Q1', 'Q2', 'Q3', 'Q4'].map((q) => <option key={q}>{q}</option>)}
+                              </select>
                               <input
                                 type="number"
                                 placeholder="Spent ($)"
                                 min="0"
                                 value={sf.spent}
-                                onChange={(e) => setSubForms((prev) => ({ ...prev, [entry.id]: { ...sf, spent: e.target.value } }))}
+                                onChange={(e) => setNewItemForms((prev) => ({ ...prev, [ch.id]: { ...sf, spent: e.target.value } }))}
                                 className="w-28 border border-slate-300 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
                               />
                               <button
                                 type="submit"
                                 className="bg-slate-600 hover:bg-slate-700 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap"
                               >
-                                + Add
+                                + Add item
                               </button>
                             </form>
                           </td>
                         </tr>
                       )}
+
                     </Fragment>
                   )
                 })}
               </tbody>
             </table>
           </div>
-        </div>
 
-        {/* Add Row Form */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
-          <h2 className="text-base font-semibold text-slate-800 mb-4">Add Channel</h2>
-          <form onSubmit={handleAdd} className="flex flex-col sm:flex-row gap-3 flex-wrap">
-            <input
-              type="text"
-              placeholder="Channel name"
-              value={form.channel}
-              onChange={(e) => setForm((f) => ({ ...f, channel: e.target.value }))}
-              className="flex-1 min-w-36 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              required
-            />
-            <input
-              type="number"
-              placeholder="Budget ($)"
-              min="0"
-              value={form.budget}
-              onChange={(e) => setForm((f) => ({ ...f, budget: e.target.value }))}
-              className="w-36 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              required
-            />
-            <input
-              type="number"
-              placeholder="Spent ($)"
-              min="0"
-              value={form.spent}
-              onChange={(e) => setForm((f) => ({ ...f, spent: e.target.value }))}
-              className="w-36 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              required
-            />
-            <select
-              value={form.quarter}
-              onChange={(e) => setForm((f) => ({ ...f, quarter: e.target.value }))}
-              className="border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              {['Q1', 'Q2', 'Q3', 'Q4'].map((q) => (
-                <option key={q}>{q}</option>
-              ))}
-            </select>
+          {/* Add channel */}
+          <div className="px-5 py-4 border-t border-slate-100">
             <button
-              type="submit"
-              className="bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm px-6 py-2 rounded-lg shadow-sm transition-colors"
+              onClick={addChannel}
+              className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-blue-600 font-medium transition-colors"
             >
-              Add
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+              </svg>
+              Add channel
             </button>
-          </form>
+          </div>
         </div>
 
       </div>
