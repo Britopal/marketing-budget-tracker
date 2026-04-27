@@ -50,11 +50,11 @@ function statusStyle(status) {
   return 'bg-green-100 text-green-700 border border-green-300'
 }
 
-function progressColor(status) {
-  if (status === 'Over') return 'bg-red-500'
-  if (status === 'Even') return 'bg-blue-500'
-  if (status === 'At risk') return 'bg-amber-400'
-  return 'bg-green-500'
+function progressBgColor(status) {
+  if (status === 'Over') return '#ef4444'
+  if (status === 'Even') return '#3b82f6'
+  if (status === 'At risk') return '#f59e0b'
+  return '#22c55e'
 }
 
 function fmt(n) {
@@ -128,6 +128,8 @@ export default function BudgetTracker() {
   const totalSpent = filtered.reduce((s, e) => s + effectiveSpent(e), 0)
   const remaining = totalBudget - totalSpent
   const pctUsed = totalBudget > 0 ? ((totalSpent / totalBudget) * 100).toFixed(1) : '0.0'
+  const annualRemaining = annualBudget - totalSpent
+  const annualPctUsed = annualBudget > 0 ? ((totalSpent / annualBudget) * 100).toFixed(1) : '0.0'
 
   // Chart data
   const chartData = filtered.map((e) => {
@@ -319,16 +321,26 @@ export default function BudgetTracker() {
 
         {/* Summary Cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <MetricCard label="Total Budget" value={fmt(totalBudget)} sub={`${filtered.length} channels`} color="blue" />
+          <MetricCard
+            label="Annual Budget"
+            value={annualBudget > 0 ? fmt(annualBudget) : '—'}
+            sub="set above"
+            color="blue"
+          />
           <MetricCard label="Total Spent" value={fmt(totalSpent)} sub="across all channels" color="indigo" />
           <MetricCard
             label="Remaining"
-            value={fmt(remaining)}
-            sub={remaining < 0 ? 'Over budget!' : 'available'}
-            color={remaining < 0 ? 'red' : 'green'}
-            valueClass={remaining < 0 ? 'text-red-600' : 'text-green-600'}
+            value={annualBudget > 0 ? fmt(annualRemaining) : '—'}
+            sub={annualBudget > 0 && annualRemaining < 0 ? 'Over annual budget!' : 'of annual budget'}
+            color={annualBudget > 0 && annualRemaining < 0 ? 'red' : 'green'}
+            valueClass={annualBudget > 0 && annualRemaining < 0 ? 'text-red-600' : 'text-green-600'}
           />
-          <MetricCard label="% Used" value={`${pctUsed}%`} sub="of total budget" color="purple" />
+          <MetricCard
+            label="% Used"
+            value={annualBudget > 0 ? `${annualPctUsed}%` : '—'}
+            sub="of annual budget"
+            color="purple"
+          />
         </div>
 
         {/* Bar Chart */}
@@ -478,8 +490,8 @@ export default function BudgetTracker() {
                           <div className="flex items-center gap-2">
                             <div className="flex-1 bg-slate-100 rounded-full h-2 overflow-hidden">
                               <div
-                                className={`h-2 rounded-full transition-all ${progressColor(status)}`}
-                                style={{ width: `${pct}%` }}
+                                className="h-2 rounded-full transition-all"
+                                style={{ width: `${pct}%`, backgroundColor: progressBgColor(status) }}
                               />
                             </div>
                             <span className="text-xs text-slate-500 w-8 text-right">
@@ -579,8 +591,8 @@ export default function BudgetTracker() {
                               <div className="flex items-center gap-2">
                                 <div className="flex-1 bg-slate-200 rounded-full h-1.5 overflow-hidden">
                                   <div
-                                    className={`h-1.5 rounded-full transition-all ${progressColor(subStatus)}`}
-                                    style={{ width: `${subPct}%` }}
+                                    className="h-1.5 rounded-full transition-all"
+                                    style={{ width: `${subPct}%`, backgroundColor: progressBgColor(subStatus) }}
                                   />
                                 </div>
                                 <span className="text-xs text-slate-400 w-8 text-right">
