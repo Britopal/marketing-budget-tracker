@@ -191,7 +191,6 @@ export default function BudgetTracker() {
       {/* Metric cards */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         {[
-          { label: "Annual Budget", value: fmt(annualBudget), accent: "border-blue-400", sub: "set above" },
           { label: "Total Allocated", value: fmt(totalAllocated), accent: "border-purple-400", sub: "across channels" },
           { label: "Unallocated", value: fmt(Math.abs(unallocated)), accent: "border-gray-300", sub: unallocated >= 0 ? "available to assign" : "over-allocated", highlight: unallocated < 0 },
           { label: "Total Spent", value: fmt(totalSpent), accent: "border-purple-400", sub: "across all channels" },
