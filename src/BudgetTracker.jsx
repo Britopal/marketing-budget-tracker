@@ -64,8 +64,19 @@ export default function BudgetTracker() {
     return getChannelItems(channelId).reduce((s, i) => s + (i.spent || 0), 0);
   }
 
+  function channelRevenue(channelId) {
+    return getChannelItems(channelId).reduce((s, i) => s + (i.revenue || 0), 0);
+  }
+
+  function calcROI(revenue, spent) {
+    if (!spent) return null;
+    return Math.round(((revenue - spent) / spent) * 100);
+  }
+
   const totalAllocated = channels.reduce((s, c) => s + (c.annual_budget || 0), 0);
   const totalSpent = channels.reduce((s, c) => s + channelSpent(c.id), 0);
+  const totalRevenue = channels.reduce((s, c) => s + channelRevenue(c.id), 0);
+  const overallROI = calcROI(totalRevenue, totalSpent);
   const unallocated = annualBudget - totalAllocated;
   const remaining = annualBudget - totalSpent;
   const pctUsed = annualBudget > 0 ? Math.round((totalSpent / annualBudget) * 100) : 0;
@@ -91,14 +102,14 @@ export default function BudgetTracker() {
   }
 
   async function addItem(channelId) {
-    const ni = newItems[channelId] || { name: "", quarter: "Q1", spent: "" };
+    const ni = newItems[channelId] || { name: "", quarter: "Q1", spent: "", revenue: "" };
     if (!ni.name.trim()) return;
     const { data } = await supabase.from("items")
-      .insert({ channel_id: channelId, name: ni.name.trim(), quarter: ni.quarter, spent: Number(ni.spent) || 0 })
+      .insert({ channel_id: channelId, name: ni.name.trim(), quarter: ni.quarter, spent: Number(ni.spent) || 0, revenue: Number(ni.revenue) || 0 })
       .select().single();
     if (data) {
       setItems(prev => [...prev, data]);
-      setNewItems(prev => ({ ...prev, [channelId]: { name: "", quarter: "Q1", spent: "" } }));
+      setNewItems(prev => ({ ...prev, [channelId]: { name: "", quarter: "Q1", spent: "", revenue: "" } }));
     }
   }
 
@@ -108,22 +119,23 @@ export default function BudgetTracker() {
   }
 
   async function updateItem(id, field, value) {
-    const update = { [field]: field === "spent" ? Number(value) : value };
+    const update = { [field]: (field === "spent" || field === "revenue") ? Number(value) : value };
     await supabase.from("items").update(update).eq("id", id);
     setItems(prev => prev.map(i => i.id === id ? { ...i, ...update } : i));
     setEditCell(null);
   }
 
   function exportCSV() {
-    const rows = [["Channel", "Item", "Quarter", "Annual Budget", "Spent", "Remaining", "Status"]];
+    const rows = [["Channel", "Item", "Quarter", "Annual Budget", "Spent", "Revenue", "ROI", "Remaining", "Status"]];
     channels.forEach(c => {
       const its = getChannelItems(c.id);
       if (its.length === 0) {
         const s = getStatus(0, c.annual_budget);
-        rows.push([c.name, "", "", c.annual_budget, 0, c.annual_budget, s.label]);
+        rows.push([c.name, "", "", c.annual_budget, 0, 0, "—", c.annual_budget, s.label]);
       } else {
         its.forEach(i => {
-          rows.push([c.name, i.name, i.quarter, c.annual_budget, i.spent, "", ""]);
+          const roi = i.spent ? Math.round(((i.revenue - i.spent) / i.spent) * 100) + "%" : "—";
+          rows.push([c.name, i.name, i.quarter, c.annual_budget, i.spent, i.revenue || 0, roi, "", ""]);
         });
       }
     });
@@ -189,13 +201,14 @@ export default function BudgetTracker() {
       </div>
 
       {/* Metric cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
         {[
           { label: "Total Allocated", value: fmt(totalAllocated), accent: "border-purple-400", sub: "across channels" },
           { label: "Unallocated", value: fmt(Math.abs(unallocated)), accent: "border-gray-300", sub: unallocated >= 0 ? "available to assign" : "over-allocated", highlight: unallocated < 0 },
           { label: "Total Spent", value: fmt(totalSpent), accent: "border-purple-400", sub: "across all channels" },
           { label: "Remaining", value: fmt(remaining), accent: "border-green-400", sub: "of annual budget", highlight: remaining < 0 },
           { label: "% Used", value: pctUsed + "%", accent: "border-purple-400", sub: "of annual budget", highlight: pctUsed > 100 },
+          { label: "Overall ROI", value: overallROI !== null ? (overallROI >= 0 ? "+" : "") + overallROI + "%" : "—", accent: overallROI > 0 ? "border-emerald-400" : overallROI < 0 ? "border-red-400" : "border-gray-300", sub: "revenue vs. spend", highlight: overallROI !== null && overallROI < 0 },
         ].map(m => (
           <div key={m.label} className={`bg-white border border-gray-200 rounded-xl p-4 border-l-4 ${m.accent}`}>
             <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">{m.label}</div>
@@ -237,6 +250,8 @@ export default function BudgetTracker() {
                 <th className="text-left text-xs text-gray-400 font-medium pb-2 pr-3">Channel / Item</th>
                 <th className="text-left text-xs text-gray-400 font-medium pb-2 pr-3">Annual Budget</th>
                 <th className="text-left text-xs text-gray-400 font-medium pb-2 pr-3">Spent</th>
+                <th className="text-left text-xs text-gray-400 font-medium pb-2 pr-3">Revenue</th>
+                <th className="text-left text-xs text-gray-400 font-medium pb-2 pr-3">ROI</th>
                 <th className="text-left text-xs text-gray-400 font-medium pb-2 pr-3">Progress</th>
                 <th className="text-left text-xs text-gray-400 font-medium pb-2 pr-3">Status</th>
                 <th className="pb-2"></th>
@@ -246,6 +261,8 @@ export default function BudgetTracker() {
               {channels.map(c => {
                 const cItems = getChannelItems(c.id);
                 const spent = channelSpent(c.id);
+                const revenue = channelRevenue(c.id);
+                const roi = calcROI(revenue, spent);
                 const p = c.annual_budget > 0 ? Math.round((spent / c.annual_budget) * 100) : 0;
                 const s = getStatus(spent, c.annual_budget);
                 const isExp = expanded[c.id];
@@ -275,6 +292,14 @@ export default function BudgetTracker() {
                       ) : fmt(c.annual_budget)}
                     </td>
                     <td className="py-2.5 pr-3">{fmt(spent)}</td>
+                    <td className="py-2.5 pr-3 text-gray-500">{revenue > 0 ? fmt(revenue) : <span className="text-gray-300">—</span>}</td>
+                    <td className="py-2.5 pr-3">
+                      {roi !== null ? (
+                        <span className={`text-xs font-semibold ${roi >= 0 ? "text-emerald-600" : "text-red-500"}`}>
+                          {roi >= 0 ? "+" : ""}{roi}%
+                        </span>
+                      ) : <span className="text-gray-300 text-xs">—</span>}
+                    </td>
                     <td className="py-2.5 pr-3">
                       <div className="w-24 bg-gray-100 rounded-full h-1.5 mb-0.5">
                         <div className="h-1.5 rounded-full" style={{ width: Math.min(p,100)+"%", background: barColor(spent, c.annual_budget) }} />
@@ -326,6 +351,19 @@ export default function BudgetTracker() {
                             onClick={() => setEditCell({ id: item.id, field: "spent" })}>{fmt(item.spent)}</span>
                         )}
                       </td>
+                      <td className="py-2 pr-3">
+                        {editCell?.id === item.id && editCell?.field === "revenue" ? (
+                          <input autoFocus type="number" defaultValue={item.revenue || ""}
+                            className="border border-blue-300 rounded px-1 w-24 text-sm"
+                            onBlur={e => updateItem(item.id, "revenue", e.target.value)}
+                            onKeyDown={e => e.key === "Enter" && updateItem(item.id, "revenue", e.target.value)} />
+                        ) : (
+                          <span className="cursor-pointer hover:text-blue-600 text-gray-500"
+                            onClick={() => setEditCell({ id: item.id, field: "revenue" })}>
+                            {item.revenue ? fmt(item.revenue) : <span className="text-gray-300 text-xs">click to add</span>}
+                          </span>
+                        )}
+                      </td>
                       <td colSpan={2}></td>
                       <td className="py-2">
                         <button onClick={() => deleteItem(item.id)} className="text-gray-300 hover:text-red-400 text-base">×</button>
@@ -353,6 +391,12 @@ export default function BudgetTracker() {
                         <input type="number" placeholder="Spent ($)"
                           value={newItems[c.id]?.spent || ""}
                           onChange={e => setNewItems(prev => ({ ...prev, [c.id]: { ...prev[c.id], spent: e.target.value } }))}
+                          className="border border-gray-200 rounded px-2 py-1 text-xs w-24" />
+                      </td>
+                      <td className="py-2 pr-3">
+                        <input type="number" placeholder="Revenue ($)"
+                          value={newItems[c.id]?.revenue || ""}
+                          onChange={e => setNewItems(prev => ({ ...prev, [c.id]: { ...prev[c.id], revenue: e.target.value } }))}
                           className="border border-gray-200 rounded px-2 py-1 text-xs w-24" />
                       </td>
                       <td colSpan={2}>
