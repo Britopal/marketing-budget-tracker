@@ -6,6 +6,15 @@ import {
 
 const fmt = (n) => "$" + Math.round(n || 0).toLocaleString();
 
+const ROI_CHANNELS = new Set([
+  "Client Events & Experiences",
+  "Advertising/Leads",
+  "AI Prospecting Tools",
+  "PR",
+  "Social Media",
+  "Website/SEO",
+]);
+
 function getStatus(spent, budget) {
   if (!budget) return { label: "No budget", color: "gray" };
   const p = (spent / budget) * 100;
@@ -68,6 +77,10 @@ export default function BudgetTracker() {
     return getChannelItems(channelId).reduce((s, i) => s + (i.revenue || 0), 0);
   }
 
+  function channelLeads(channelId) {
+    return getChannelItems(channelId).reduce((s, i) => s + (i.leads || 0), 0);
+  }
+
   function calcROI(revenue, spent) {
     if (!spent) return null;
     return Math.round(((revenue - spent) / spent) * 100);
@@ -102,14 +115,21 @@ export default function BudgetTracker() {
   }
 
   async function addItem(channelId) {
-    const ni = newItems[channelId] || { name: "", quarter: "Q1", spent: "", revenue: "" };
+    const ni = newItems[channelId] || { name: "", quarter: "Q1", spent: "", revenue: "", leads: "" };
     if (!ni.name.trim()) return;
     const { data } = await supabase.from("items")
-      .insert({ channel_id: channelId, name: ni.name.trim(), quarter: ni.quarter, spent: Number(ni.spent) || 0, revenue: Number(ni.revenue) || 0 })
+      .insert({
+        channel_id: channelId,
+        name: ni.name.trim(),
+        quarter: ni.quarter,
+        spent: Number(ni.spent) || 0,
+        revenue: Number(ni.revenue) || 0,
+        leads: Number(ni.leads) || 0,
+      })
       .select().single();
     if (data) {
       setItems(prev => [...prev, data]);
-      setNewItems(prev => ({ ...prev, [channelId]: { name: "", quarter: "Q1", spent: "", revenue: "" } }));
+      setNewItems(prev => ({ ...prev, [channelId]: { name: "", quarter: "Q1", spent: "", revenue: "", leads: "" } }));
     }
   }
 
@@ -119,23 +139,24 @@ export default function BudgetTracker() {
   }
 
   async function updateItem(id, field, value) {
-    const update = { [field]: (field === "spent" || field === "revenue") ? Number(value) : value };
+    const numericFields = new Set(["spent", "revenue", "leads"]);
+    const update = { [field]: numericFields.has(field) ? Number(value) : value };
     await supabase.from("items").update(update).eq("id", id);
     setItems(prev => prev.map(i => i.id === id ? { ...i, ...update } : i));
     setEditCell(null);
   }
 
   function exportCSV() {
-    const rows = [["Channel", "Item", "Quarter", "Annual Budget", "Spent", "Revenue", "ROI", "Remaining", "Status"]];
+    const rows = [["Channel", "Item", "Quarter", "Annual Budget", "Spent", "Revenue", "Leads", "ROI", "Remaining", "Status"]];
     channels.forEach(c => {
       const its = getChannelItems(c.id);
       if (its.length === 0) {
         const s = getStatus(0, c.annual_budget);
-        rows.push([c.name, "", "", c.annual_budget, 0, 0, "—", c.annual_budget, s.label]);
+        rows.push([c.name, "", "", c.annual_budget, 0, 0, 0, "—", c.annual_budget, s.label]);
       } else {
         its.forEach(i => {
           const roi = i.spent ? Math.round(((i.revenue - i.spent) / i.spent) * 100) + "%" : "—";
-          rows.push([c.name, i.name, i.quarter, c.annual_budget, i.spent, i.revenue || 0, roi, "", ""]);
+          rows.push([c.name, i.name, i.quarter, c.annual_budget, i.spent, i.revenue || 0, i.leads || 0, roi, "", ""]);
         });
       }
     });
@@ -251,6 +272,7 @@ export default function BudgetTracker() {
                 <th className="text-left text-xs text-gray-400 font-medium pb-2 pr-3">Annual Budget</th>
                 <th className="text-left text-xs text-gray-400 font-medium pb-2 pr-3">Spent</th>
                 <th className="text-left text-xs text-gray-400 font-medium pb-2 pr-3">Revenue</th>
+                <th className="text-left text-xs text-gray-400 font-medium pb-2 pr-3">Leads</th>
                 <th className="text-left text-xs text-gray-400 font-medium pb-2 pr-3">ROI</th>
                 <th className="text-left text-xs text-gray-400 font-medium pb-2 pr-3">Progress</th>
                 <th className="text-left text-xs text-gray-400 font-medium pb-2 pr-3">Status</th>
@@ -262,11 +284,13 @@ export default function BudgetTracker() {
                 const cItems = getChannelItems(c.id);
                 const spent = channelSpent(c.id);
                 const revenue = channelRevenue(c.id);
+                const leads = channelLeads(c.id);
                 const roi = calcROI(revenue, spent);
                 const p = c.annual_budget > 0 ? Math.round((spent / c.annual_budget) * 100) : 0;
                 const s = getStatus(spent, c.annual_budget);
                 const isExp = expanded[c.id];
                 const allItems = items.filter(i => i.channel_id === c.id);
+                const showROI = ROI_CHANNELS.has(c.name);
 
                 return [
                   // Channel row
@@ -292,13 +316,18 @@ export default function BudgetTracker() {
                       ) : fmt(c.annual_budget)}
                     </td>
                     <td className="py-2.5 pr-3">{fmt(spent)}</td>
-                    <td className="py-2.5 pr-3 text-gray-500">{revenue > 0 ? fmt(revenue) : <span className="text-gray-300">—</span>}</td>
+                    <td className="py-2.5 pr-3 text-gray-500">
+                      {showROI && (revenue > 0 ? fmt(revenue) : <span className="text-gray-300">—</span>)}
+                    </td>
+                    <td className="py-2.5 pr-3 text-gray-500">
+                      {showROI && (leads > 0 ? leads.toLocaleString() : <span className="text-gray-300">—</span>)}
+                    </td>
                     <td className="py-2.5 pr-3">
-                      {roi !== null ? (
+                      {showROI && (roi !== null ? (
                         <span className={`text-xs font-semibold ${roi >= 0 ? "text-emerald-600" : "text-red-500"}`}>
                           {roi >= 0 ? "+" : ""}{roi}%
                         </span>
-                      ) : <span className="text-gray-300 text-xs">—</span>}
+                      ) : <span className="text-gray-300 text-xs">—</span>)}
                     </td>
                     <td className="py-2.5 pr-3">
                       <div className="w-24 bg-gray-100 rounded-full h-1.5 mb-0.5">
@@ -352,7 +381,7 @@ export default function BudgetTracker() {
                         )}
                       </td>
                       <td className="py-2 pr-3">
-                        {editCell?.id === item.id && editCell?.field === "revenue" ? (
+                        {showROI && (editCell?.id === item.id && editCell?.field === "revenue" ? (
                           <input autoFocus type="number" defaultValue={item.revenue || ""}
                             className="border border-blue-300 rounded px-1 w-24 text-sm"
                             onBlur={e => updateItem(item.id, "revenue", e.target.value)}
@@ -362,7 +391,20 @@ export default function BudgetTracker() {
                             onClick={() => setEditCell({ id: item.id, field: "revenue" })}>
                             {item.revenue ? fmt(item.revenue) : <span className="text-gray-300 text-xs">click to add</span>}
                           </span>
-                        )}
+                        ))}
+                      </td>
+                      <td className="py-2 pr-3">
+                        {showROI && (editCell?.id === item.id && editCell?.field === "leads" ? (
+                          <input autoFocus type="number" defaultValue={item.leads || ""}
+                            className="border border-blue-300 rounded px-1 w-20 text-sm"
+                            onBlur={e => updateItem(item.id, "leads", e.target.value)}
+                            onKeyDown={e => e.key === "Enter" && updateItem(item.id, "leads", e.target.value)} />
+                        ) : (
+                          <span className="cursor-pointer hover:text-blue-600 text-gray-500"
+                            onClick={() => setEditCell({ id: item.id, field: "leads" })}>
+                            {item.leads ? item.leads.toLocaleString() : <span className="text-gray-300 text-xs">click to add</span>}
+                          </span>
+                        ))}
                       </td>
                       <td colSpan={2}></td>
                       <td className="py-2">
@@ -394,10 +436,20 @@ export default function BudgetTracker() {
                           className="border border-gray-200 rounded px-2 py-1 text-xs w-24" />
                       </td>
                       <td className="py-2 pr-3">
-                        <input type="number" placeholder="Revenue ($)"
-                          value={newItems[c.id]?.revenue || ""}
-                          onChange={e => setNewItems(prev => ({ ...prev, [c.id]: { ...prev[c.id], revenue: e.target.value } }))}
-                          className="border border-gray-200 rounded px-2 py-1 text-xs w-24" />
+                        {showROI && (
+                          <input type="number" placeholder="Revenue ($)"
+                            value={newItems[c.id]?.revenue || ""}
+                            onChange={e => setNewItems(prev => ({ ...prev, [c.id]: { ...prev[c.id], revenue: e.target.value } }))}
+                            className="border border-gray-200 rounded px-2 py-1 text-xs w-24" />
+                        )}
+                      </td>
+                      <td className="py-2 pr-3">
+                        {showROI && (
+                          <input type="number" placeholder="Leads"
+                            value={newItems[c.id]?.leads || ""}
+                            onChange={e => setNewItems(prev => ({ ...prev, [c.id]: { ...prev[c.id], leads: e.target.value } }))}
+                            className="border border-gray-200 rounded px-2 py-1 text-xs w-20" />
+                        )}
                       </td>
                       <td colSpan={2}>
                         <button onClick={() => addItem(c.id)}
