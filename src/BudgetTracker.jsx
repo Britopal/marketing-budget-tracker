@@ -58,7 +58,18 @@ export default function BudgetTracker() {
   async function loadData() {
     setLoading(true);
     const { data: ch } = await supabase.from("channels").select("*").order("created_at");
-    const { data: it } = await supabase.from("items").select("*").order("created_at");
+    const { data: it, error: itemsError } = await supabase.from("items").select("*").order("created_at");
+    if (itemsError) console.error("loadData items error:", itemsError.message);
+    // Verify revenue/leads columns exist — if not, migrations need to be applied in Supabase dashboard
+    const { error: schemaError } = await supabase.from("items").select("revenue, leads").limit(0);
+    if (schemaError) {
+      console.error(
+        "Schema error: revenue/leads columns missing from items table.\n" +
+        "Apply migrations in the Supabase SQL editor:\n" +
+        "  alter table items add column if not exists revenue numeric default 0;\n" +
+        "  alter table items add column if not exists leads integer default 0;"
+      );
+    }
     setChannels(ch || []);
     setItems(it || []);
     setLoading(false);
@@ -141,8 +152,12 @@ export default function BudgetTracker() {
   async function updateItem(id, field, value) {
     const numericFields = new Set(["spent", "revenue", "leads"]);
     const update = { [field]: numericFields.has(field) ? Number(value) : value };
-    await supabase.from("items").update(update).eq("id", id);
-    setItems(prev => prev.map(i => i.id === id ? { ...i, ...update } : i));
+    const { error } = await supabase.from("items").update(update).eq("id", id);
+    if (error) {
+      console.error("updateItem failed:", error.message, { field, value });
+    } else {
+      setItems(prev => prev.map(i => i.id === id ? { ...i, ...update } : i));
+    }
     setEditCell(null);
   }
 
@@ -385,7 +400,7 @@ export default function BudgetTracker() {
                         )}
                       </td>
                       <td className="py-2 pr-3">
-                        {showROI && (editCell?.id === item.id && editCell?.field === "revenue" ? (
+                        {editCell?.id === item.id && editCell?.field === "revenue" ? (
                           <input autoFocus type="number" defaultValue={item.revenue || ""}
                             className="border border-blue-300 rounded px-1 w-24 text-sm"
                             onBlur={e => updateItem(item.id, "revenue", e.target.value)}
@@ -395,10 +410,10 @@ export default function BudgetTracker() {
                             onClick={() => setEditCell({ id: item.id, field: "revenue" })}>
                             {item.revenue ? fmt(item.revenue) : <span className="text-gray-300 text-xs">click to add</span>}
                           </span>
-                        ))}
+                        )}
                       </td>
                       <td className="py-2 pr-3">
-                        {showROI && (editCell?.id === item.id && editCell?.field === "leads" ? (
+                        {editCell?.id === item.id && editCell?.field === "leads" ? (
                           <input autoFocus type="number" defaultValue={item.leads || ""}
                             className="border border-blue-300 rounded px-1 w-20 text-sm"
                             onBlur={e => updateItem(item.id, "leads", e.target.value)}
@@ -408,7 +423,7 @@ export default function BudgetTracker() {
                             onClick={() => setEditCell({ id: item.id, field: "leads" })}>
                             {item.leads ? item.leads.toLocaleString() : <span className="text-gray-300 text-xs">click to add</span>}
                           </span>
-                        ))}
+                        )}
                       </td>
                       <td colSpan={2}></td>
                       <td className="py-2">
@@ -440,20 +455,16 @@ export default function BudgetTracker() {
                           className="border border-gray-200 rounded px-2 py-1 text-xs w-24" />
                       </td>
                       <td className="py-2 pr-3">
-                        {showROI && (
-                          <input type="number" placeholder="Revenue ($)"
-                            value={newItems[c.id]?.revenue || ""}
-                            onChange={e => setNewItems(prev => ({ ...prev, [c.id]: { ...prev[c.id], revenue: e.target.value } }))}
-                            className="border border-gray-200 rounded px-2 py-1 text-xs w-24" />
-                        )}
+                        <input type="number" placeholder="Revenue ($)"
+                          value={newItems[c.id]?.revenue || ""}
+                          onChange={e => setNewItems(prev => ({ ...prev, [c.id]: { ...prev[c.id], revenue: e.target.value } }))}
+                          className="border border-gray-200 rounded px-2 py-1 text-xs w-24" />
                       </td>
                       <td className="py-2 pr-3">
-                        {showROI && (
-                          <input type="number" placeholder="Leads"
-                            value={newItems[c.id]?.leads || ""}
-                            onChange={e => setNewItems(prev => ({ ...prev, [c.id]: { ...prev[c.id], leads: e.target.value } }))}
-                            className="border border-gray-200 rounded px-2 py-1 text-xs w-20" />
-                        )}
+                        <input type="number" placeholder="Leads"
+                          value={newItems[c.id]?.leads || ""}
+                          onChange={e => setNewItems(prev => ({ ...prev, [c.id]: { ...prev[c.id], leads: e.target.value } }))}
+                          className="border border-gray-200 rounded px-2 py-1 text-xs w-20" />
                       </td>
                       <td colSpan={2}>
                         <button onClick={() => addItem(c.id)}
