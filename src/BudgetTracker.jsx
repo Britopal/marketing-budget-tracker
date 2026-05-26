@@ -337,9 +337,7 @@ export default function BudgetTracker() {
                         : <span className="text-gray-300 text-xs">n/a</span>}
                     </td>
                     <td className="py-2.5 pr-3 text-gray-500">
-                      {showROI
-                        ? (leads > 0 ? leads.toLocaleString() : <span className="text-gray-300">—</span>)
-                        : <span className="text-gray-300 text-xs">n/a</span>}
+                      {leads > 0 ? leads.toLocaleString() : <span className="text-gray-300">—</span>}
                     </td>
                     <td className="py-2.5 pr-3">
                       {showROI
