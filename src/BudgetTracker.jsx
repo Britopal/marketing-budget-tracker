@@ -307,8 +307,8 @@ export default function BudgetTracker() {
                 const p = c.annual_budget > 0 ? Math.round((spent / c.annual_budget) * 100) : 0;
                 const s = getStatus(spent, c.annual_budget);
                 const isExp = expanded[c.id];
-                const allItems = items.filter(i => i.channel_id === c.id);
-                const showROI = ROI_CHANNELS.has(c.name);
+                const allItems = items.filter(i => String(i.channel_id) === String(c.id));
+                const showROI = ROI_CHANNELS.has(c.name.trim());
 
                 return [
                   // Channel row
