@@ -85,11 +85,11 @@ export default function BudgetTracker() {
   }
 
   function channelRevenue(channelId) {
-    return getChannelItems(channelId).reduce((s, i) => s + (i.revenue || 0), 0);
+    return items.filter(i => i.channel_id === channelId).reduce((s, i) => s + (Number(i.revenue) || 0), 0);
   }
 
   function channelLeads(channelId) {
-    return getChannelItems(channelId).reduce((s, i) => s + (i.leads || 0), 0);
+    return items.filter(i => i.channel_id === channelId).reduce((s, i) => s + (Number(i.leads) || 0), 0);
   }
 
   function calcROI(revenue, spent) {
