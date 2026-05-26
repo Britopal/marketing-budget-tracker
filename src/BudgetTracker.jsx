@@ -58,7 +58,18 @@ export default function BudgetTracker() {
   async function loadData() {
     setLoading(true);
     const { data: ch } = await supabase.from("channels").select("*").order("created_at");
-    const { data: it } = await supabase.from("items").select("*").order("created_at");
+    const { data: it, error: itemsError } = await supabase.from("items").select("*").order("created_at");
+    if (itemsError) console.error("loadData items error:", itemsError.message);
+    // Verify revenue/leads columns exist — if not, migrations need to be applied in Supabase dashboard
+    const { error: schemaError } = await supabase.from("items").select("revenue, leads").limit(0);
+    if (schemaError) {
+      console.error(
+        "Schema error: revenue/leads columns missing from items table.\n" +
+        "Apply migrations in the Supabase SQL editor:\n" +
+        "  alter table items add column if not exists revenue numeric default 0;\n" +
+        "  alter table items add column if not exists leads integer default 0;"
+      );
+    }
     setChannels(ch || []);
     setItems(it || []);
     setLoading(false);
@@ -141,8 +152,12 @@ export default function BudgetTracker() {
   async function updateItem(id, field, value) {
     const numericFields = new Set(["spent", "revenue", "leads"]);
     const update = { [field]: numericFields.has(field) ? Number(value) : value };
-    await supabase.from("items").update(update).eq("id", id);
-    setItems(prev => prev.map(i => i.id === id ? { ...i, ...update } : i));
+    const { error } = await supabase.from("items").update(update).eq("id", id);
+    if (error) {
+      console.error("updateItem failed:", error.message, { field, value });
+    } else {
+      setItems(prev => prev.map(i => i.id === id ? { ...i, ...update } : i));
+    }
     setEditCell(null);
   }
 
