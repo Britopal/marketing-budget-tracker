@@ -11,7 +11,6 @@ const ROI_CHANNELS = new Set([
   "Advertising/Leads",
   "AI Prospecting Tools",
   "PR",
-  "Social Media",
   "Website/SEO",
 ]);
 
@@ -317,17 +316,21 @@ export default function BudgetTracker() {
                     </td>
                     <td className="py-2.5 pr-3">{fmt(spent)}</td>
                     <td className="py-2.5 pr-3 text-gray-500">
-                      {showROI && (revenue > 0 ? fmt(revenue) : <span className="text-gray-300">—</span>)}
+                      {showROI
+                        ? (revenue > 0 ? fmt(revenue) : <span className="text-gray-300">—</span>)
+                        : <span className="text-gray-300 text-xs">n/a</span>}
                     </td>
                     <td className="py-2.5 pr-3 text-gray-500">
-                      {showROI && (leads > 0 ? leads.toLocaleString() : <span className="text-gray-300">—</span>)}
+                      {showROI
+                        ? (leads > 0 ? leads.toLocaleString() : <span className="text-gray-300">—</span>)
+                        : <span className="text-gray-300 text-xs">n/a</span>}
                     </td>
                     <td className="py-2.5 pr-3">
-                      {showROI && (roi !== null ? (
-                        <span className={`text-xs font-semibold ${roi >= 0 ? "text-emerald-600" : "text-red-500"}`}>
-                          {roi >= 0 ? "+" : ""}{roi}%
-                        </span>
-                      ) : <span className="text-gray-300 text-xs">—</span>)}
+                      {showROI
+                        ? (roi !== null
+                          ? <span className={`text-xs font-semibold ${roi >= 0 ? "text-emerald-600" : "text-red-500"}`}>{roi >= 0 ? "+" : ""}{roi}%</span>
+                          : <span className="text-gray-300 text-xs">—</span>)
+                        : <span className="text-gray-300 text-xs">n/a</span>}
                     </td>
                     <td className="py-2.5 pr-3">
                       <div className="w-24 bg-gray-100 rounded-full h-1.5 mb-0.5">
