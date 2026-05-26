@@ -11,6 +11,7 @@ const ROI_CHANNELS = new Set([
   "Advertising/Leads",
   "AI Prospecting Tools",
   "PR",
+  "Social Media",
   "Website/SEO",
 ]);
 
