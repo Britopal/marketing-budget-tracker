@@ -6,15 +6,6 @@ import {
 
 const fmt = (n) => "$" + Math.round(n || 0).toLocaleString();
 
-const ROI_CHANNELS = new Set([
-  "Client Events & Experiences",
-  "Advertising/Leads",
-  "AI Prospecting Tools",
-  "PR",
-  "Social Media",
-  "Website/SEO",
-]);
-
 function getStatus(spent, budget) {
   if (!budget) return { label: "No budget", color: "gray" };
   const p = (spent / budget) * 100;
@@ -76,7 +67,7 @@ export default function BudgetTracker() {
   }
 
   function getChannelItems(channelId) {
-    return items.filter(i => i.channel_id === channelId &&
+    return items.filter(i => String(i.channel_id) === String(channelId) &&
       (quarterFilter === "All" || i.quarter === quarterFilter));
   }
 
@@ -90,9 +81,7 @@ export default function BudgetTracker() {
   }
 
   function channelLeads(channelId) {
-    const channelItems = items.filter(i => String(i.channel_id) === String(channelId));
-    console.log("[channelLeads]", channelId, channelItems.map(i => ({ id: i.id, leads: i.leads, channel_id: i.channel_id })));
-    return channelItems.reduce((s, i) => s + (Number(i.leads) || 0), 0);
+    return items.filter(i => String(i.channel_id) === String(channelId)).reduce((s, i) => s + (Number(i.leads) || 0), 0);
   }
 
   function calcROI(revenue, spent) {
@@ -308,8 +297,6 @@ export default function BudgetTracker() {
                 const s = getStatus(spent, c.annual_budget);
                 const isExp = expanded[c.id];
                 const allItems = items.filter(i => String(i.channel_id) === String(c.id));
-                const showROI = ROI_CHANNELS.has(c.name.trim());
-
                 return [
                   // Channel row
                   <tr key={c.id} className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer">
@@ -335,21 +322,15 @@ export default function BudgetTracker() {
                     </td>
                     <td className="py-2.5 pr-3">{fmt(spent)}</td>
                     <td className="py-2.5 pr-3 text-gray-500">
-                      {showROI
-                        ? (revenue > 0 ? fmt(revenue) : <span className="text-gray-300">—</span>)
-                        : <span className="text-gray-300 text-xs">n/a</span>}
+                      {revenue > 0 ? fmt(revenue) : <span className="text-gray-300">—</span>}
                     </td>
                     <td className="py-2.5 pr-3 text-gray-500">
-                      {showROI
-                        ? (leads > 0 ? leads.toLocaleString() : <span className="text-gray-300">—</span>)
-                        : <span className="text-gray-300 text-xs">n/a</span>}
+                      {leads > 0 ? leads.toLocaleString() : <span className="text-gray-300">—</span>}
                     </td>
                     <td className="py-2.5 pr-3">
-                      {showROI
-                        ? (roi !== null
-                          ? <span className={`text-xs font-semibold ${roi >= 0 ? "text-emerald-600" : "text-red-500"}`}>{roi >= 0 ? "+" : ""}{roi}%</span>
-                          : <span className="text-gray-300 text-xs">—</span>)
-                        : <span className="text-gray-300 text-xs">n/a</span>}
+                      {roi !== null
+                        ? <span className={`text-xs font-semibold ${roi >= 0 ? "text-emerald-600" : "text-red-500"}`}>{roi >= 0 ? "+" : ""}{roi}%</span>
+                        : <span className="text-gray-300 text-xs">—</span>}
                     </td>
                     <td className="py-2.5 pr-3">
                       <div className="w-24 bg-gray-100 rounded-full h-1.5 mb-0.5">
