@@ -6,6 +6,15 @@ import {
 
 const fmt = (n) => "$" + Math.round(n || 0).toLocaleString();
 
+// Channels where Revenue, Leads, and ROI are not tracked — those cells show — instead of editable inputs
+const NO_ROI_CHANNELS = new Set([
+  "Specialist Vendors",
+  "Technology",
+  "Agency Support",
+  "Design / Creative",
+  "Prospect and COI Gifts",
+]);
+
 function getStatus(spent, budget) {
   if (!budget) return { label: "No budget", color: "gray" };
   const p = (spent / budget) * 100;
@@ -297,6 +306,7 @@ export default function BudgetTracker() {
                 const s = getStatus(spent, c.annual_budget);
                 const isExp = expanded[c.id];
                 const allItems = items.filter(i => String(i.channel_id) === String(c.id));
+                const hideMetrics = NO_ROI_CHANNELS.has(c.name.trim());
                 return [
                   // Channel row
                   <tr key={c.id} className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer">
@@ -322,15 +332,18 @@ export default function BudgetTracker() {
                     </td>
                     <td className="py-2.5 pr-3">{fmt(spent)}</td>
                     <td className="py-2.5 pr-3 text-gray-500">
-                      {revenue > 0 ? fmt(revenue) : <span className="text-gray-300">—</span>}
+                      {hideMetrics ? <span className="text-gray-300">—</span>
+                        : revenue > 0 ? fmt(revenue) : <span className="text-gray-300">—</span>}
                     </td>
                     <td className="py-2.5 pr-3 text-gray-500">
-                      {leads > 0 ? leads.toLocaleString() : <span className="text-gray-300">—</span>}
+                      {hideMetrics ? <span className="text-gray-300">—</span>
+                        : leads > 0 ? leads.toLocaleString() : <span className="text-gray-300">—</span>}
                     </td>
                     <td className="py-2.5 pr-3">
-                      {roi !== null
-                        ? <span className={`text-xs font-semibold ${roi >= 0 ? "text-emerald-600" : "text-red-500"}`}>{roi >= 0 ? "+" : ""}{roi}%</span>
-                        : <span className="text-gray-300 text-xs">—</span>}
+                      {hideMetrics ? <span className="text-gray-300">—</span>
+                        : roi !== null
+                          ? <span className={`text-xs font-semibold ${roi >= 0 ? "text-emerald-600" : "text-red-500"}`}>{roi >= 0 ? "+" : ""}{roi}%</span>
+                          : <span className="text-gray-300 text-xs">—</span>}
                     </td>
                     <td className="py-2.5 pr-3">
                       <div className="w-24 bg-gray-100 rounded-full h-1.5 mb-0.5">
@@ -384,7 +397,8 @@ export default function BudgetTracker() {
                         )}
                       </td>
                       <td className="py-2 pr-3">
-                        {editCell?.id === item.id && editCell?.field === "revenue" ? (
+                        {hideMetrics ? <span className="text-gray-300">—</span>
+                          : editCell?.id === item.id && editCell?.field === "revenue" ? (
                           <input autoFocus type="number" defaultValue={item.revenue || ""}
                             className="border border-blue-300 rounded px-1 w-24 text-sm"
                             onBlur={e => updateItem(item.id, "revenue", e.target.value)}
@@ -397,7 +411,8 @@ export default function BudgetTracker() {
                         )}
                       </td>
                       <td className="py-2 pr-3">
-                        {editCell?.id === item.id && editCell?.field === "leads" ? (
+                        {hideMetrics ? <span className="text-gray-300">—</span>
+                          : editCell?.id === item.id && editCell?.field === "leads" ? (
                           <input autoFocus type="number" defaultValue={item.leads || ""}
                             className="border border-blue-300 rounded px-1 w-20 text-sm"
                             onBlur={e => updateItem(item.id, "leads", e.target.value)}
@@ -439,16 +454,20 @@ export default function BudgetTracker() {
                           className="border border-gray-200 rounded px-2 py-1 text-xs w-24" />
                       </td>
                       <td className="py-2 pr-3">
-                        <input type="number" placeholder="Revenue ($)"
-                          value={newItems[c.id]?.revenue || ""}
-                          onChange={e => setNewItems(prev => ({ ...prev, [c.id]: { ...prev[c.id], revenue: e.target.value } }))}
-                          className="border border-gray-200 rounded px-2 py-1 text-xs w-24" />
+                        {!hideMetrics && (
+                          <input type="number" placeholder="Revenue ($)"
+                            value={newItems[c.id]?.revenue || ""}
+                            onChange={e => setNewItems(prev => ({ ...prev, [c.id]: { ...prev[c.id], revenue: e.target.value } }))}
+                            className="border border-gray-200 rounded px-2 py-1 text-xs w-24" />
+                        )}
                       </td>
                       <td className="py-2 pr-3">
-                        <input type="number" placeholder="Leads"
-                          value={newItems[c.id]?.leads || ""}
-                          onChange={e => setNewItems(prev => ({ ...prev, [c.id]: { ...prev[c.id], leads: e.target.value } }))}
-                          className="border border-gray-200 rounded px-2 py-1 text-xs w-20" />
+                        {!hideMetrics && (
+                          <input type="number" placeholder="Leads"
+                            value={newItems[c.id]?.leads || ""}
+                            onChange={e => setNewItems(prev => ({ ...prev, [c.id]: { ...prev[c.id], leads: e.target.value } }))}
+                            className="border border-gray-200 rounded px-2 py-1 text-xs w-20" />
+                        )}
                       </td>
                       <td colSpan={2}>
                         <button onClick={() => addItem(c.id)}
